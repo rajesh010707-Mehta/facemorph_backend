@@ -1,80 +1,78 @@
 """
 landmark_extractor.py
 Extract 478 3-D facial landmarks using MediaPipe FaceLandmarker (Tasks API).
-Compatible with mediapipe >= 0.10 / 1.x.
+Uses PIL as primary decoder to avoid libGL dependency on headless servers.
 """
 
 import os
-import cv2
+import io
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
+from PIL import Image
 from typing import Optional, Dict, Any
 
-# Path to the .task model bundled with the backend
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "face_landmarker.task")
-_MODEL_PATH = os.path.abspath(_MODEL_PATH)
+# Absolute path to model file
+_MODEL_PATH = r"d:\scan1\Face matching\backend\face_landmarker.task"
 
-
-def _get_landmarker() -> mp_vision.FaceLandmarker:
-    """Create a FaceLandmarker for single-image (non-live) use."""
-    base_options = mp_python.BaseOptions(model_asset_path=_MODEL_PATH)
-    options = mp_vision.FaceLandmarkerOptions(
-        base_options=base_options,
-        running_mode=mp_vision.RunningMode.IMAGE,
-        num_faces=1,
-        min_face_detection_confidence=0.5,
-        min_face_presence_confidence=0.5,
-        output_face_blendshapes=False,
-        output_facial_transformation_matrixes=False,
+# Fallback paths for different environments
+if not os.path.exists(_MODEL_PATH):
+    _MODEL_PATH = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "face_landmarker.task")
     )
-    return mp_vision.FaceLandmarker.create_from_options(options)
+if not os.path.exists(_MODEL_PATH):
+    _MODEL_PATH = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_landmarker.task")
+    )
 
 
 def extract_landmarks(image_bytes: bytes, view: str = "front") -> Optional[Dict[str, Any]]:
     """
     Extract 3-D facial landmarks from raw image bytes.
+    Uses PIL for decoding (no libGL required).
 
     Args:
-        image_bytes: Raw binary image data (JPEG / PNG / WEBP …).
-        view: Informational tag – 'front', 'left', or 'right'.
+        image_bytes: Raw binary image data (JPEG / PNG / WEBP).
+        view: 'front', 'left', or 'right'.
 
     Returns:
-        dict with keys:
-            landmarks  : np.ndarray (N, 3)  –  (x_px, y_px, z_relative)
-            image_width: int
-            image_height: int
-            view       : str
-        None if no face is detected or the image cannot be decoded.
+        dict with landmarks (np.ndarray Nx3), image_width, image_height, view
+        None if no face detected or image cannot be decoded.
     """
-    # Decode bytes → OpenCV BGR
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if bgr is None:
+    try:
+        # Use PIL to decode — no libGL needed
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        width, height = pil_img.size
+        rgb_array = np.array(pil_img, dtype=np.uint8)
+    except Exception:
         return None
 
-    height, width = bgr.shape[:2]
+    # Create MediaPipe Image from numpy RGB array
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_array)
 
-    # MediaPipe Tasks API expects an mp.Image (RGB)
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+    base_options = mp_python.BaseOptions(model_asset_path=_MODEL_PATH)
+    options = mp_vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        running_mode=mp_vision.RunningMode.IMAGE,
+        num_faces=1,
+        min_face_detection_confidence=0.3,
+        min_face_presence_confidence=0.3,
+        output_face_blendshapes=False,
+        output_facial_transformation_matrixes=False,
+    )
 
-    with _get_landmarker() as landmarker:
+    with mp_vision.FaceLandmarker.create_from_options(options) as landmarker:
         detection_result = landmarker.detect(mp_image)
 
     if not detection_result.face_landmarks:
         return None
 
-    # First (and only) face
     raw = detection_result.face_landmarks[0]
-
-    # Convert normalised coords → absolute pixel space
-    # z in MediaPipe is relative to image width (same scale as x)
     landmarks = np.array(
         [[lm.x * width, lm.y * height, lm.z * width] for lm in raw],
         dtype=np.float32,
-    )  # shape (478, 3)  — Tasks API returns 478 pts (incl. iris)
+    )
 
     return {
         "landmarks": landmarks,

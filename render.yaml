@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: facemorphmatch-backend
+    runtime: python
+    buildCommand: pip uninstall -y opencv-python opencv-contrib-python && pip install -r requirements.txt && python download_model.py
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
