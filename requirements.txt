@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+gunicorn
+python-multipart
+mediapipe
+opencv-python-headless
+numpy
+scipy
+pydantic
