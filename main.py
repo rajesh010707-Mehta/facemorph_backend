@@ -29,7 +29,14 @@ if not os.path.exists(MODEL_PATH):
 # ── Landmark extraction ───────────────────────────────────────────────────────
 def extract_landmarks(image_bytes: bytes, view: str = "front"):
     try:
-        pil_img   = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        # Resize to optimal size for MediaPipe (min 300px, max 1920px)
+        w, h = pil_img.size
+        if w < 300 or h < 300:
+            scale = max(300/w, 300/h)
+            pil_img = pil_img.resize((int(w*scale), int(h*scale)), Image.LANCZOS)
+        if w > 1920 or h > 1920:
+            pil_img.thumbnail((1920, 1920), Image.LANCZOS)
         width, height = pil_img.size
         rgb_array = np.array(pil_img, dtype=np.uint8)
     except Exception:
@@ -41,8 +48,8 @@ def extract_landmarks(image_bytes: bytes, view: str = "front"):
         base_options=base_options,
         running_mode=mp_vision.RunningMode.IMAGE,
         num_faces=1,
-        min_face_detection_confidence=0.2,
-        min_face_presence_confidence=0.2,
+        min_face_detection_confidence=0.1,
+        min_face_presence_confidence=0.1,
         output_face_blendshapes=False,
         output_facial_transformation_matrixes=False,
     )
