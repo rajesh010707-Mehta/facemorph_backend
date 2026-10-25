@@ -13,42 +13,28 @@ from mediapipe.tasks.python import vision as mp_vision
 from PIL import Image
 from typing import Optional, Dict, Any
 
-# Absolute path to model file
-_MODEL_PATH = r"d:\scan1\Face matching\backend\face_landmarker.task"
-
-# Fallback paths for different environments
-if not os.path.exists(_MODEL_PATH):
-    _MODEL_PATH = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "face_landmarker.task")
-    )
-if not os.path.exists(_MODEL_PATH):
-    _MODEL_PATH = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_landmarker.task")
-    )
+# Model path — works on both Windows (local) and Linux (Render)
+# services/landmark_extractor.py -> ../face_landmarker.task
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_MODEL_PATH = os.path.join(_THIS_DIR, "..", "face_landmarker.task")
+_MODEL_PATH = os.path.abspath(_MODEL_PATH)
 
 
 def extract_landmarks(image_bytes: bytes, view: str = "front") -> Optional[Dict[str, Any]]:
     """
     Extract 3-D facial landmarks from raw image bytes.
     Uses PIL for decoding (no libGL required).
-
-    Args:
-        image_bytes: Raw binary image data (JPEG / PNG / WEBP).
-        view: 'front', 'left', or 'right'.
-
-    Returns:
-        dict with landmarks (np.ndarray Nx3), image_width, image_height, view
-        None if no face detected or image cannot be decoded.
     """
+    if not os.path.exists(_MODEL_PATH):
+        raise FileNotFoundError(f"Model not found: {_MODEL_PATH}")
+
     try:
-        # Use PIL to decode — no libGL needed
         pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         width, height = pil_img.size
         rgb_array = np.array(pil_img, dtype=np.uint8)
     except Exception:
         return None
 
-    # Create MediaPipe Image from numpy RGB array
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_array)
 
     base_options = mp_python.BaseOptions(model_asset_path=_MODEL_PATH)
@@ -56,8 +42,8 @@ def extract_landmarks(image_bytes: bytes, view: str = "front") -> Optional[Dict[
         base_options=base_options,
         running_mode=mp_vision.RunningMode.IMAGE,
         num_faces=1,
-        min_face_detection_confidence=0.3,
-        min_face_presence_confidence=0.3,
+        min_face_detection_confidence=0.2,
+        min_face_presence_confidence=0.2,
         output_face_blendshapes=False,
         output_facial_transformation_matrixes=False,
     )
