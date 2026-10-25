@@ -13,11 +13,9 @@ from mediapipe.tasks.python import vision as mp_vision
 from PIL import Image
 from typing import Optional, Dict, Any
 
-# Model path — works on both Windows (local) and Linux (Render)
-# services/landmark_extractor.py -> ../face_landmarker.task
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_MODEL_PATH = os.path.join(_THIS_DIR, "..", "face_landmarker.task")
-_MODEL_PATH = os.path.abspath(_MODEL_PATH)
+# Model is always in backend/ root (one level up from services/)
+_THIS_DIR   = os.path.dirname(os.path.abspath(__file__))   # .../backend/services
+_MODEL_PATH = os.path.abspath(os.path.join(_THIS_DIR, "..", "face_landmarker.task"))
 
 
 def extract_landmarks(image_bytes: bytes, view: str = "front") -> Optional[Dict[str, Any]]:

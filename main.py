@@ -4,9 +4,22 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 import asyncio
 import traceback
+import os
+import urllib.request
 
-from landmark_extractor import extract_landmarks
-from matcher import compute_match
+# ── Download model at startup if missing ─────────────────────────────────────
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_landmarker.task")
+MODEL_URL  = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+
+if not os.path.exists(MODEL_PATH):
+    print(f"Downloading face_landmarker.task to {MODEL_PATH} ...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    print("Model downloaded successfully.")
+else:
+    print(f"Model found at {MODEL_PATH}")
+
+from services.landmark_extractor import extract_landmarks
+from services.matcher import compute_match
 
 app = FastAPI(title="FaceMorph Match API", version="1.0.0")
 
@@ -52,34 +65,26 @@ async def match_faces(
         if not target_front_bytes:
             raise HTTPException(status_code=400, detail="target_front image is empty or missing")
 
-        # Extract landmarks (run in thread to avoid blocking)
         ulf = await asyncio.to_thread(extract_landmarks, user_front_bytes,   "front")
         tlf = await asyncio.to_thread(extract_landmarks, target_front_bytes, "front")
 
         if ulf is None:
             raise HTTPException(status_code=400,
-                detail="No face detected in YOUR front image. Please use a clear, well-lit photo with the face visible.")
+                detail="No face detected in YOUR front image. Please use a clear, well-lit photo with the face fully visible.")
         if tlf is None:
             raise HTTPException(status_code=400,
-                detail="No face detected in TARGET front image. Please use a clear, well-lit photo with the face visible.")
+                detail="No face detected in TARGET front image. Please use a clear, well-lit photo with the face fully visible.")
 
-        user_lm    = {"front": ulf}
-        target_lm  = {"front": tlf}
+        user_lm   = {"front": ulf}
+        target_lm = {"front": tlf}
 
-        # Optional side views
-        for key, data, view in [
-            ("left",  user_left_bytes,    "left"),
-            ("right", user_right_bytes,   "right"),
-        ]:
+        for key, data, view in [("left", user_left_bytes, "left"), ("right", user_right_bytes, "right")]:
             if data:
                 lm = await asyncio.to_thread(extract_landmarks, data, view)
                 if lm:
                     user_lm[key] = lm
 
-        for key, data, view in [
-            ("left",  target_left_bytes,  "left"),
-            ("right", target_right_bytes, "right"),
-        ]:
+        for key, data, view in [("left", target_left_bytes, "left"), ("right", target_right_bytes, "right")]:
             if data:
                 lm = await asyncio.to_thread(extract_landmarks, data, view)
                 if lm:
@@ -97,4 +102,4 @@ async def match_faces(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model": os.path.exists(MODEL_PATH)}
