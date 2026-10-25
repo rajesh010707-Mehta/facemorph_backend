@@ -1,8 +1,8 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
-mediapipe==0.10.35
+mediapipe==0.10.18
 Pillow==10.4.0
-numpy==1.24.4
-scipy==1.10.1
+numpy==1.26.4
+scipy==1.11.4
 pydantic==2.9.2
