@@ -175,8 +175,8 @@ async def match_faces(
         ulf = await asyncio.to_thread(extract_landmarks, uf, "front")
         tlf = await asyncio.to_thread(extract_landmarks, tf, "front")
 
-        if not ulf: raise HTTPException(400, "No face detected in YOUR image. Use a clear, well-lit front-facing photo.")
-        if not tlf: raise HTTPException(400, "No face detected in TARGET image. Use a clear, well-lit front-facing photo.")
+        if not ulf: raise HTTPException(400, "No face detected in YOUR image. Tips: (1) Use a clear front-facing photo (2) Good lighting (3) Face should take up most of the image (4) No sunglasses or mask (5) JPEG/PNG format only")
+        if not tlf: raise HTTPException(400, "No face detected in TARGET image. Tips: (1) Use a clear front-facing photo (2) Good lighting (3) Face should take up most of the image (4) No sunglasses or mask (5) JPEG/PNG format only")
 
         user_lm = {"front": ulf}; tgt_lm = {"front": tlf}
 
